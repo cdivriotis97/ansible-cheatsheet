@@ -1,0 +1,23 @@
+- hosts: all
+  become_method: sudo
+  become: true
+  become_user: root
+  tasks:
+
+    - name: Remove Zabbix Agent
+      yum:
+        name: zabbix-agent
+        state: absent
+
+    - name: Remove Zabbix config folder
+      file:
+        state: absent
+        path: /etc/zabbix
+
+    - name: Remove Zabbix log folder
+      file:
+        state: absent
+        path: /var/log/zabbix
+
+    - name : Prevent package for being updated
+      command: yum versionlock delete zabbix-agent.x86_64

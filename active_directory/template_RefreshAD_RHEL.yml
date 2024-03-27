@@ -1,0 +1,103 @@
+---
+- name: Install and configure AD authentication
+  hosts: all
+  become: yes
+  become_method: sudo
+
+  vars_prompt:
+    - name: "bind_password"
+      prompt: "Password for <AD_USER>@<active_directory>"
+      private: yes
+
+  tasks:
+    - block:
+      - name : Check if the server is internal or not
+        command: /bin/bash -c 'realm list | head -n 1'
+        register: is_internal
+
+      - name: Print result
+        debug: 
+          msg: "Ansible Version: {{ is_internal.stdout }}"
+
+      - meta: end_play
+        when: is_internal.stdout != '<active_directory>'
+
+
+    - name: Backup sssd.conf file
+      copy: remote_src=True src=/etc/sssd/sssd.conf dest=/tmp/sssd.conf.bak
+
+    - name: Make sure the old Keytab is deleted
+      file:
+        path: /etc/krb5.keytab
+        state: absent
+      ignore_errors: true
+
+    - name: Leave domain    
+      command: /bin/bash -c 'realm leave'
+
+    - name: Delete AD Computer
+      expect:
+        command: /bin/bash -c 'adcli delete-computer --domain=<active_directory> {{ ansible_hostname }} -U <AD_USER>'
+        responses:
+          Password for *: "{{ bind_password }}"
+      ignore_errors: true
+      no_log: true
+
+    - name: Join system to AD and add the computer object in the Linux OU
+      expect:
+        command: /bin/bash -c '/usr/sbin/realm join --user=<AD_USER> --computer-ou="OU=XXX,OU=XXX,DC=XXX,DC=XXX,DC=XXX" --os-name="Red Hat Enterprise Linux" --os-version="8" --membership-software=adcli <active_directory>'
+        responses:
+          Password for *: "{{ bind_password }}"
+      no_log: true
+      when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '8'
+
+    - name: Join system to AD and add the computer object in the Linux OU
+      expect:
+        command: /bin/bash -c '/usr/sbin/realm join --user=<AD_USER> --computer-ou="OU=XXX,OU=XXX,DC=XXX,DC=XXX,DC=XXX" --os-name="Red Hat Enterprise Linux" --os-version="9" --membership-software=adcli <active_directory>'
+        responses:
+          Password for *: "{{ bind_password }}"
+      no_log: true
+      when: ansible_distribution == 'RedHat' and ansible_distribution_major_version == '9'
+
+    - name: Add default_domain_suffix to sssd.conf
+      lineinfile:
+        dest: /etc/sssd/sssd.conf
+        line: 'default_domain_suffix = <active_directory>'
+        insertafter: '^\[sssd\]'
+
+    - name: Allow the IAM Linux ADMIN AD group to logon to the system
+      command: /bin/bash -c "/usr/sbin/realm permit -g LINUX-ALL-SUDO@<active_directory>"
+
+    - name: Add the IAM Linux ADMIN AD group to sudoers
+      lineinfile:
+        dest: /etc/sudoers
+        line: '%LINUX-ALL-SUDO@<active_directory>        ALL=(ALL)       ALL'
+        insertafter: '^%wheel'
+
+    - name: Allow the {{ ansible_hostname }} SUDO AD group to logon to the system
+      command: /bin/bash -c "/usr/sbin/realm permit -g LINUX-{{ ansible_hostname }}-SUDO@<active_directory>"
+
+    - name: Add the {{ ansible_hostname }} SUDO AD Group to sudoers
+      lineinfile:
+        dest: /etc/sudoers
+        line: '%LINUX-{{ ansible_hostname }}-SUDO@<active_directory>        ALL=(ALL)       ALL'
+        insertafter: '^%wheel'
+
+    - name: Allow the {{ ansible_hostname }} USER AD group to logon to the system
+      command: /bin/bash -c "/usr/sbin/realm permit -g LINUX-USER@<active_directory>"
+
+
+    - name: Restart service realmd
+      service:
+        name: realmd
+        state: restarted
+
+    - name: restart sssd
+      service:
+        name: sssd
+        state: restarted
+
+    - name: restart systemd-logind
+      service:
+        name: systemd-logind
+        state: restarted
