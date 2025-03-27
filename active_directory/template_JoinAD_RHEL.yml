@@ -6,7 +6,7 @@
 
   vars_prompt:
     - name: "bind_password"
-      prompt: "Password for c@<active_directory>"
+      prompt: "Password for <AD_USER>@<active_directory>"
       private: yes
 
   tasks:
@@ -63,25 +63,25 @@
         insertafter: '^\[sssd\]'
 
     - name: Allow the IAM Linux ADMIN AD group to logon to the system
-      command: /bin/bash -c "/usr/sbin/realm permit -g LINUX-ALL-SUDO@<active_directory>"
+      command: /bin/bash -c "/usr/sbin/realm permit -g <AD-GROUP>@<active_directory>"
 
     - name: Add the IAM Linux ADMIN AD group to sudoers
       lineinfile:
         dest: /etc/sudoers
-        line: '%LINUX-ALL-SUDO@<active_directory>        ALL=(ALL)       ALL'
+        line: '%<AD-GROUP>@<active_directory>        ALL=(ALL)       ALL'
         insertafter: '^%wheel'
 
     - name: Allow the {{ ansible_hostname }} SUDO AD group to logon to the system
-      command: /bin/bash -c "/usr/sbin/realm permit -g LINUX-{{ ansible_hostname }}-SUDO@<active_directory>"
+      command: /bin/bash -c "/usr/sbin/realm permit -g <AD-GROUP>@<active_directory>"
 
     - name: Add the {{ ansible_hostname }} SUDO AD Group to sudoers
       lineinfile:
         dest: /etc/sudoers
-        line: '%LINUX-{{ ansible_hostname }}-SUDO@<active_directory>        ALL=(ALL)       ALL'
+        line: '%<AD-GROUP>@<active_directory>        ALL=(ALL)       ALL'
         insertafter: '^%wheel'
 
     - name: Allow the {{ ansible_hostname }} USER AD group to logon to the system
-      command: /bin/bash -c "/usr/sbin/realm permit -g LINUX-USER@<active_directory>"
+      command: /bin/bash -c "/usr/sbin/realm permit -g <AD-GROUP>@<active_directory>"
 
 
     - name: Restart service realmd
