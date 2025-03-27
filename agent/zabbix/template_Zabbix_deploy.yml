@@ -40,7 +40,7 @@
 
     - name: Zabbix Agent configuration file update
       template: 
-        src: ./templates/zabbix_agentdv6.conf.j2
+        src: ./templates/zabbix_agentd.conf.j2
         dest: /etc/zabbix/zabbix_agentd.conf
 
     - name: Start Zabbix Agent Service
