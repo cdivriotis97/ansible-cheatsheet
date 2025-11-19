@@ -1,7 +1,6 @@
 ---
-- name: EPEL 8 RHEL 8 
+- name: EPEL RHEL
   hosts: all
-  become: yes
   become_method: sudo
 
   tasks:
@@ -12,4 +11,4 @@
         state: present
       when: ansible_distribution == 'Redhat' and ansible_distribution_major_version == '8'
       environment:
-        https_proxy: http://<PROXY_URL>:<PROXY_PORT>
+        https_proxy: http://myproxy.net:8080
