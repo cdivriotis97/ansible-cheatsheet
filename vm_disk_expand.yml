@@ -1,0 +1,128 @@
+- hosts: localhost
+  become_method: sudo
+  become: false
+  collections:
+    - community.vmware
+  pre_tasks:
+    - include_vars: ./vars/settings.yml
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  vars_prompt:
+    - name: "vm_name"
+      prompt: "vm_name"
+      private: no
+    - name: "size_gb_to_add"
+      prompt: "size_gb_to_add"
+      private: no
+    - name: "vcenter_username"
+      prompt: "vcenter_username"
+      private: no
+    - name: "vcenter_password"
+      prompt: "vcenter_password"
+      private: yes
+      
+  tasks:
+
+    - name: Get all disks from existing VM
+      vmware_guest_disk_info:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ vcenter_validate_certs }}"
+        datacenter: '{{ vcenter_datacenter }}'
+        name: '{{ vm_name  }}'
+      register: existing_disk
+
+    - name: Get Backing datastore for desired disk id
+      set_fact:
+        vm_disk_datastore: "{{ item.value.backing_datastore }}"
+      with_dict: "{{ existing_disk.guest_disk_info }}"
+      when: item.key == '0'
+  
+    - debug:
+        msg: "{{ vm_disk_datastore }}"
+      when: vm_disk_datastore is defined
+
+    - name: Get scsi controller bus
+      set_fact:
+        vm_disk_scsi_controller: "{{ item.value.controller_bus_number }}"
+      with_dict: "{{ existing_disk.guest_disk_info }}"
+      when: item.key == '0'
+
+    - debug:
+        msg: '{{ vm_disk_scsi_controller }}'
+      when: vm_disk_scsi_controller is defined
+
+    - name: Get scsi controller type
+      set_fact:
+        vm_disk_scsi_type: "{{ item.value.controller_type }}"
+      with_dict: "{{ existing_disk.guest_disk_info }}"
+      when: item.key == '0'
+
+    - debug:
+        msg: '{{ vm_disk_scsi_type }}'
+      when: vm_disk_scsi_type is defined
+
+
+    - name: Get Unit Number
+      set_fact:
+        vm_disk_unit: "{{ item.value.unit_number }}"
+      with_dict: "{{ existing_disk.guest_disk_info }}"
+      when: item.key == '0'
+
+    - debug:
+        msg: '{{ vm_disk_unit }}'
+      when: vm_disk_unit is defined
+
+
+    - name: Get Disk
+      set_fact:
+        disc_size: "{{ item.value.capacity_in_kb|int  }}"
+      with_dict: "{{ existing_disk.guest_disk_info }}"
+      when: item.key == '0'
+  
+    - debug:
+        msg: '{{ disc_size }}'
+      when: disc_size is defined
+
+    - name: Size to add GB
+      set_fact:
+        size_gb_to_add_int: "{{ size_gb_to_add|int }}"      
+
+    - debug:
+        msg: '{{ size_gb_to_add_int }}'
+      when: size_gb_to_add_int is defined
+
+    - name: Size to add KB
+      set_fact:
+        size_kb_to_add: "{{ ((size_gb_to_add_int | int)*1048576)|int }}"
+
+    - debug:
+        msg: '{{ size_kb_to_add | int}}'
+      when: size_kb_to_add is defined      
+
+    - name: New Size
+      set_fact:
+        new_size: "{{ (disc_size | int) + (size_kb_to_add |int)|int }}"
+
+    - debug:
+        msg: '{{ new_size | int }}'
+      when: new_size is defined
+          
+    - name: expand disk in vm
+      vmware_guest_disk:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ vcenter_validate_certs }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        name: "{{ vm_name }}"
+        disk:
+          - size_kb: "{{ new_size }}"
+            #type: "{{ vm_disk_type }}"
+            datastore: "{{ vm_disk_datastore }}"
+            state: present
+            scsi_controller: "{{ vm_disk_scsi_controller }}"
+            scsi_type: "{{ vm_disk_scsi_type }}"
+            unit_number: "{{ vm_disk_unit }}"          

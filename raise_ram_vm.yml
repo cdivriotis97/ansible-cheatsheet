@@ -1,0 +1,57 @@
+- hosts: localhost
+  become_method: sudo
+  become: false
+  collections:
+    - community.vmware
+  pre_tasks:
+    - include_vars: ./vars/settings.yml
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  vars_prompt:
+    - name: "vm_name"
+      prompt: "vm_name"
+      private: no
+    - name: "memory_size"
+      prompt: "Size of memory (in GB)"
+      private: no
+    - name: "vcenter_username"
+      prompt: "vcenter_username"
+      private: no
+    - name: "vcenter_password"
+      prompt: "vcenter_password"
+      private: yes
+      
+  tasks:
+
+    - name: "Get VM info" 
+      community.vmware.vmware_guest_info: 
+        hostname: "{{ vcenter_hostname }}" 
+        username: "{{ vcenter_username }}" 
+        password: "{{ vcenter_password }}" 
+        validate_certs: "{{ vcenter_validate_certs }}" 
+        datacenter: "{{ vcenter_datacenter }}" 
+        name: "{{ vm_name }}" 
+      register: vm_info 
+      delegate_to: localhost 
+      connection: local 
+    
+    - name: "Raise memory for a VM" 
+      community.vmware.vmware_guest: 
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ vcenter_validate_certs }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        validate_certs: False 
+        uuid: "{{ vm_info.instance.hw_product_uuid }}" 
+        hardware: 
+          memory_mb: "{{ memory_size|int * 1024 }}" 
+      when: (memory_size|int * 1024) > vm_info.instance.hw_memtotal_mb 
+      delegate_to: "localhost" 
+      connection: local 
+   
+    - name: "Requested memory should be larger than existent" 
+      debug: 
+        msg: "Requested memory should be larger than existent ( {{ (memory_size|int * 1024) }} <= {{ vm_info.instance.hw_memtotal_mb }} !)" 
+      when: (memory_size|int * 1024) <= vm_info.instance.hw_memtotal_mb      

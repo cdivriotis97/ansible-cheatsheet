@@ -1,0 +1,35 @@
+- hosts: localhost
+  become_method: sudo
+  become: false
+  collections:
+    - community.vmware
+  pre_tasks:
+    - include_vars: ./vars/settings.yml
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  vars_prompt:
+    - name: "vm_name"
+      prompt: "vm_name"
+      private: no
+    - name: "vcenter_username"
+      prompt: "vcenter_username"
+      private: no
+    - name: "vcenter_password"
+      prompt: "vcenter_password"
+      private: yes
+      
+  tasks:
+
+    - name: Power on the VM
+      community.vmware.vmware_guest_powerstate:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ vcenter_validate_certs }}"
+        datacenter: '{{ vcenter_datacenter }}'
+        name: '{{ vm_name  }}'
+        state: reboot-guest
+      delegate_to: localhost
+      register: vm_reboot
+

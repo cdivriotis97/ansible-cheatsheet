@@ -1,0 +1,5 @@
+---
+vcenter_hostname: "vmware.vcenter"
+vcenter_datacenter: "DCA"
+vcenter_validate_certs: false
+vm_disk_scsi_controller: 0
